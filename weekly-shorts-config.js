@@ -25,54 +25,68 @@ const WEEK_CONFIG = {
 
 const originalFetch = window.fetch;
 window.fetch = async function(resource, init) {
-    const url = typeof resource === 'string' ? resource : resource.url;
-    const urlObj = new URL(url, window.location.href);
-    const path = urlObj.pathname;
-    
-    // 1. Mock directory listing (exactly 5 files)
-    if (path.endsWith('/tracks/community/') || path.endsWith('/tracks/community')) {
-        const mockHtml = `
-            <!DOCTYPE html>
-            <html>
-            <body>
-                <a href="short1.track">short1.track</a>
-                <a href="short2.track">short2.track</a>
-                <a href="short3.track">short3.track</a>
-                <a href="short4.track">short4.track</a>
-                <a href="short5.track">short5.track</a>
-            </body>
-            </html>
-        `;
-        return new Response(mockHtml, {
-            status: 200,
-            headers: { 'Content-Type': 'text/html' }
-        });
-    }
-    
-    // 2. Mock individual track code files
-    if (path.includes('/tracks/community/')) {
-        const filename = path.split('/').pop();
-        const trackName = filename.replace('.track', '');
+    try {
+        const url = typeof resource === 'string' ? resource : (resource && resource.url);
+        if (!url) {
+            return originalFetch(resource, init);
+        }
+
+        let path = "";
+        try {
+            const urlObj = new URL(url, window.location.href);
+            path = urlObj.pathname;
+        } catch (urlError) {
+            // If the URL is a data: or blob: structure, bypass parsing and run normal fetch
+            return originalFetch(resource, init);
+        }
         
-        if (WEEK_CONFIG.tracks[trackName]) {
-            return new Response(WEEK_CONFIG.tracks[trackName], {
+        // 1. Mock directory listing (exactly 5 files)
+        if (path.endsWith('/tracks/community/') || path.endsWith('/tracks/community')) {
+            const mockHtml = `
+                <!DOCTYPE html>
+                <html>
+                <body>
+                    <a href="short1.track">short1.track</a>
+                    <a href="short2.track">short2.track</a>
+                    <a href="short3.track">short3.track</a>
+                    <a href="short4.track">short4.track</a>
+                    <a href="short5.track">short5.track</a>
+                </body>
+                </html>
+            `;
+            return new Response(mockHtml, {
                 status: 200,
-                headers: { 'Content-Type': 'text/plain' }
+                headers: { 'Content-Type': 'text/html' }
             });
         }
+        
+        // 2. Mock individual track code files
+        if (path.includes('/tracks/community/')) {
+            const filename = path.split('/').pop();
+            const trackName = filename.replace('.track', '');
+            
+            if (WEEK_CONFIG.tracks[trackName]) {
+                return new Response(WEEK_CONFIG.tracks[trackName], {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
+            }
+        }
+    } catch (interceptorError) {
+        // Fallback error logging to keep the game loading on unexpected exceptions
+        console.error("Interceptor warning:", interceptorError);
     }
     
-    return originalFetch.apply(this, arguments);
+    // Explicitly call the original fetch bound to the window context
+    return originalFetch(resource, init);
 };
 
 // UI Cleaning/Layer Hiding Logic
 function applyUIModifications() {
-    // Select elements that typically hold button and panel text
     const elements = document.querySelectorAll('button, p, span, a, h1, h2, h3, div');
     
     elements.forEach(el => {
         // SAFETY GUARD: If the element has child HTML tags, skip it.
-        // This prevents overwriting or hiding whole layout containers.
         if (el.children.length > 0) return;
         
         const text = el.textContent.trim().toLowerCase();
@@ -92,7 +106,7 @@ function applyUIModifications() {
             el.textContent = WEEK_CONFIG.tabName;
         }
         
-        // REPLACE Version Number text elements safely (only if they are leaf text nodes)
+        // REPLACE Version Number text elements safely
         const versionPattern = /kodub\.com|VERSION\s*[0-9.]+|0\.[56]\.[0-9]+/i;
         if (versionPattern.test(el.textContent)) {
             el.textContent = WEEK_CONFIG.weekName;
