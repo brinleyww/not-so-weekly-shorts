@@ -20,6 +20,56 @@ const WEEK_CONFIG = {
 };
 
 // ==========================================
+// ON-SCREEN DIAGNOSTIC REPORTER
+// ==========================================
+window.addEventListener('error', function(event) {
+    showDiagnosticError("JS Error: " + event.message + " in " + event.filename + " (Line " + event.lineno + ")");
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    showDiagnosticError("Unhandled Rejection: " + event.reason);
+});
+
+function showDiagnosticError(message) {
+    let container = document.getElementById('mod-diagnostics');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'mod-diagnostics';
+        container.style.position = 'fixed';
+        container.style.bottom = '15px';
+        container.style.left = '15px';
+        container.style.right = '15px';
+        container.style.backgroundColor = 'rgba(230, 20, 20, 0.95)';
+        container.style.color = 'white';
+        container.style.padding = '15px';
+        container.style.fontFamily = 'monospace';
+        container.style.fontSize = '12px';
+        container.style.zIndex = '9999999';
+        container.style.borderRadius = '6px';
+        container.style.maxHeight = '250px';
+        container.style.overflowY = 'auto';
+        container.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4)';
+        container.style.border = '1px solid #ff4d4d';
+        
+        const title = document.createElement('div');
+        title.style.fontWeight = 'bold';
+        title.style.marginBottom = '8px';
+        title.style.textTransform = 'uppercase';
+        title.textContent = "⚠️ MOD DIAGNOSTIC LOG (Failing Assets / Code Exceptions):";
+        container.appendChild(title);
+        
+        document.body.appendChild(container);
+    }
+    const item = document.createElement('div');
+    item.style.borderTop = '1px solid rgba(255,255,255,0.2)';
+    item.style.paddingTop = '6px';
+    item.style.marginTop = '6px';
+    item.textContent = message;
+    container.appendChild(item);
+    container.scrollTop = container.scrollHeight;
+}
+
+// ==========================================
 // BACKGROUND INJECTION LOGIC
 // ==========================================
 
@@ -27,9 +77,20 @@ const originalFetch = window.fetch;
 window.fetch = function(resource, init) {
     const url = typeof resource === 'string' ? resource : (resource && resource.url);
     
-    // Quick, non-blocking check: Support relative paths by removing the leading slash from the search pattern
+    // Quick, non-blocking check: If the request doesn't involve the tracks directory, bypass the interceptor immediately
     if (!url || !url.includes('tracks/')) {
-        return originalFetch.apply(window, arguments);
+        return originalFetch.apply(window, arguments).then(response => {
+            // DIAGNOSTIC MONITOR: Catch any failed asset loads (sounds, WASM, models) and display them!
+            if (!response.ok && response.status !== 404) {
+                showDiagnosticError("Failed to load core asset: " + url + " (Status Code: " + response.status + ")");
+            } else if (response.status === 404) {
+                showDiagnosticError("File Missing (404 Error): " + url);
+            }
+            return response;
+        }).catch(err => {
+            showDiagnosticError("Network Exception when loading: " + url + " (" + err.message + ")");
+            throw err;
+        });
     }
     
     return (async () => {
