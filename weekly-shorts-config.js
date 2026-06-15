@@ -27,8 +27,8 @@ const originalFetch = window.fetch;
 window.fetch = function(resource, init) {
     const url = typeof resource === 'string' ? resource : (resource && resource.url);
     
-    // Quick, non-blocking check: If the request doesn't involve the tracks directory, bypass the interceptor immediately
-    if (!url || !url.includes('/tracks/')) {
+    // Quick, non-blocking check: Support relative paths by removing the leading slash from the search pattern
+    if (!url || !url.includes('tracks/')) {
         return originalFetch.apply(window, arguments);
     }
     
@@ -62,17 +62,14 @@ window.fetch = function(resource, init) {
                 const filename = path.split('/').pop();
                 const trackName = filename.replace('.track', '');
                 
-                // If it is one of our 5 weekly shorts, serve its actual code
-                if (WEEK_CONFIG.tracks[trackName]) {
-                    return new Response(WEEK_CONFIG.tracks[trackName], {
-                        status: 200,
-                        headers: { 'Content-Type': 'text/plain' }
-                    });
-                }
+                // Flexible mapper to support track keys named "short1" or "track1" interchangeably
+                const trackKey = WEEK_CONFIG.tracks[trackName] ? trackName : trackName.replace('short', 'track');
                 
-                // If the game preloader is trying to fetch a deleted track (like official tracks),
-                // serve short1 as a fallback so the game successfully loads and does not throw a 404/parse error.
-                return new Response(WEEK_CONFIG.tracks.short1, {
+                // Fallback to any valid track code in your configuration to guarantee no 404s
+                const fallbackTrackCode = WEEK_CONFIG.tracks.short1 || WEEK_CONFIG.tracks.track1 || "PolyTrack24pdbOnrmbCDAFG9VyYZATJgYxsjhhlpTASgwgFY25pPTelUkiU8fUdLu5uVWBmXQfCqrbYg5xltRaH0pcNj9ceIvHNRaLqKuM4xDf1V7MXHB1M3xYOfPQfclmoV2RgiqkAGWsCxked0BvY5BfU8eBzulvyASdvJ3jB4XBYgJhSu5QwBkp5hTfk1r4jLBAcRmGGgNvnIGQAJZVdDfEJRKIGKLcFTVZAexiYtk72Mjeyxee5485usr6HI1bzS5zVxWqrrc7mbuXCQ2GoBqVZaCUKO0woezcDXz04FvajtvAUqKDK046C7hmFq6LNrpQCyDn8cfzNDMbsPX2yIki7ZgXrapK2lOE08dOkVpTj4tqq7LeX1iCduoYHF8Uw63I9nv1Y8QZO0kh7Hmdn7efgX4NF1gfLPH9j4eXwYb3ze3eBmGnv4fixWFYNV32z5hddETdEm2NAz7Sk7C1Z7Ahzaebq3CztmsRikUETXhL9JTbsGFW01XEeL5uaMHuuY0XgiYV7f7esGsF67J71siugzZ0askwZVxYAKt9dLtTxh3pc2oLsYT4ud2Ftp3pTFyf2YLcrvsale9uACHde6pYVBZD2Allyucs47CfTtfpAQCUUPpRiOu5oKsPgbVF0XpRWxikXDSkjPOSePxCsd0V95acrfhl0k2Ms3LLev1mAmXnprcTBbVclASbYqtVk8vAAmI76A";
+                const trackCode = WEEK_CONFIG.tracks[trackKey] || fallbackTrackCode;
+                
+                return new Response(trackCode, {
                     status: 200,
                     headers: { 'Content-Type': 'text/plain' }
                 });
