@@ -67,9 +67,14 @@ window.fetch = async function(resource, init) {
 
 // UI Cleaning/Layer Hiding Logic
 function applyUIModifications() {
-    const elements = document.querySelectorAll('button, div, p, span, a, h1, h2, h3');
+    // Select elements that typically hold button and panel text
+    const elements = document.querySelectorAll('button, p, span, a, h1, h2, h3, div');
     
     elements.forEach(el => {
+        // SAFETY GUARD: If the element has child HTML tags, skip it.
+        // This prevents overwriting or hiding whole layout containers.
+        if (el.children.length > 0) return;
+        
         const text = el.textContent.trim().toLowerCase();
         
         // HIDE "Official tracks" tab
@@ -87,8 +92,8 @@ function applyUIModifications() {
             el.textContent = WEEK_CONFIG.tabName;
         }
         
-        // REPLACE Version Number (Matches version string patterns like "0.5.2", "0.6.1", or "Version: 0.6.2")
-        const versionPattern = /(?:kodub\.com\s*-\s*)?[Vv]ersion(?:\s*:\s*|\s+)[0-9.]+|[0-9]+\.[0-9]+\.[0-9]+/i;
+        // REPLACE Version Number text elements safely (only if they are leaf text nodes)
+        const versionPattern = /kodub\.com|VERSION\s*[0-9.]+|0\.[56]\.[0-9]+/i;
         if (versionPattern.test(el.textContent)) {
             el.textContent = WEEK_CONFIG.weekName;
         }
