@@ -27,8 +27,8 @@ const originalFetch = window.fetch;
 window.fetch = function(resource, init) {
     const url = typeof resource === 'string' ? resource : (resource && resource.url);
     
-    // Quick, non-blocking check: If the request doesn't involve "tracks/community", immediately bypass
-    if (!url || !url.includes('tracks/community')) {
+    // Quick, non-blocking check: If the request doesn't involve the tracks directory, bypass the interceptor immediately
+    if (!url || !url.includes('/tracks/')) {
         return originalFetch.apply(window, arguments);
     }
     
@@ -37,7 +37,7 @@ window.fetch = function(resource, init) {
             const urlObj = new URL(url, window.location.href);
             const path = urlObj.pathname;
             
-            // 1. Mock directory listing (exactly 5 files)
+            // 1. Mock the community directory listing (exactly 5 files)
             if (path.endsWith('/tracks/community/') || path.endsWith('/tracks/community')) {
                 const mockHtml = `
                     <!DOCTYPE html>
@@ -58,16 +58,24 @@ window.fetch = function(resource, init) {
             }
             
             // 2. Mock individual track code files
-            if (path.includes('/tracks/community/')) {
+            if (path.endsWith('.track')) {
                 const filename = path.split('/').pop();
                 const trackName = filename.replace('.track', '');
                 
+                // If it is one of our 5 weekly shorts, serve its actual code
                 if (WEEK_CONFIG.tracks[trackName]) {
                     return new Response(WEEK_CONFIG.tracks[trackName], {
                         status: 200,
                         headers: { 'Content-Type': 'text/plain' }
                     });
                 }
+                
+                // If the game preloader is trying to fetch a deleted track (like official tracks),
+                // serve short1 as a fallback so the game successfully loads and does not throw a 404/parse error.
+                return new Response(WEEK_CONFIG.tracks.short1, {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
             }
         } catch (interceptorError) {
             console.error("Interceptor warning:", interceptorError);
